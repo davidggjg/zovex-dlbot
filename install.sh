@@ -101,10 +101,17 @@ echo "${C_B}── Telegram Bot API מקומי ──${C_0}"
 echo "בלעדיו: העלאה עד 50MB, הורדה עד 20MB."
 echo "איתו:   העלאה עד 2000MB, הורדה ללא הגבלה."
 echo "נדרשים api_id ו-api_hash מ-https://my.telegram.org (Apps → create application)."
-read -rp "להתקין את השרת המקומי? [Y/n] " ANS
+if [[ -n ${API_ID:-} && -n ${API_HASH:-} ]]; then
+  ANS=y
+  ok "api_id/api_hash התקבלו ממשתני סביבה"
+elif [[ ${SKIP_LOCAL_API:-} == 1 ]]; then
+  ANS=n
+else
+  read -rp "להתקין את השרת המקומי? [Y/n] " ANS
+fi
 if [[ ${ANS:-Y} =~ ^[Yy]?$ ]]; then
-  read -rp "  api_id: "   API_ID
-  read -rp "  api_hash: " API_HASH
+  [[ -n ${API_ID:-} ]]   || read -rp "  api_id: "   API_ID
+  [[ -n ${API_HASH:-} ]] || read -rp "  api_hash: " API_HASH
   [[ -n $API_ID && -n $API_HASH ]] || die "api_id/api_hash חסרים."
   build_tba
   cat > /etc/telegram-bot-api.env <<EOF
@@ -123,8 +130,8 @@ fi
 if [[ ! -f $APP_DIR/.env ]]; then
   echo
   echo "${C_B}── הגדרות הבוט ──${C_0}"
-  read -rp "  BOT_TOKEN (מ-@BotFather): " BOT_TOKEN
-  read -rp "  ADMIN_IDS (ה-user id שלך, מ-@userinfobot): " ADMIN_IDS
+  [[ -n ${BOT_TOKEN:-} ]] || read -rp "  BOT_TOKEN (מ-@BotFather): " BOT_TOKEN
+  [[ -n ${ADMIN_IDS:-} ]] || read -rp "  ADMIN_IDS (ה-user id שלך, מ-@userinfobot): " ADMIN_IDS
   [[ -n $BOT_TOKEN ]] || die "BOT_TOKEN חסר."
   sed -e "s|^BOT_TOKEN=.*|BOT_TOKEN=$BOT_TOKEN|" \
       -e "s|^ADMIN_IDS=.*|ADMIN_IDS=$ADMIN_IDS|" \
@@ -155,9 +162,20 @@ if [[ $USE_LOCAL == true ]]; then
     journalctl -u telegram-bot-api -n 20 --no-pager
     die "telegram-bot-api לא עלה."
   fi
-  warn "אם הבוט שימש קודם את api.telegram.org, הרץ פעם אחת:"
-  echo "       curl -s 'https://api.telegram.org/bot<TOKEN>/logOut'"
-  echo "       ואז: systemctl restart dlbot"
+  if [[ -n ${BOT_TOKEN:-} ]]; then
+    say "מנתק את הבוט מהענן כדי שיוכל לעבוד מול השרת המקומי (logOut)"
+    RESP=$(curl -s --max-time 20 "https://api.telegram.org/bot$BOT_TOKEN/logOut" || true)
+    case "$RESP" in
+      *'"ok":true'*)        ok "הבוט נותק מהענן" ;;
+      *LOGGED_OUT*|*"not found"*) ok "הבוט כבר לא מחובר לענן" ;;
+      *) warn "logOut החזיר: ${RESP:0:120}" ;;
+    esac
+    sleep 2
+  else
+    warn "אם הבוט שימש קודם את api.telegram.org, הרץ פעם אחת:"
+    echo "       curl -s 'https://api.telegram.org/bot<TOKEN>/logOut'"
+    echo "       ואז: systemctl restart dlbot"
+  fi
 fi
 
 systemctl enable --now dlbot-cleanup.timer dlbot-update.timer >/dev/null
