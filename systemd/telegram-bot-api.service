@@ -1,0 +1,28 @@
+[Unit]
+Description=Telegram Bot API local server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dlbot
+Group=dlbot
+EnvironmentFile=/etc/telegram-bot-api.env
+ExecStart=/usr/local/bin/telegram-bot-api \
+    --local \
+    --api-id=${TELEGRAM_API_ID} \
+    --api-hash=${TELEGRAM_API_HASH} \
+    --http-port=8081 \
+    --http-ip-address=127.0.0.1 \
+    --dir=/var/lib/telegram-bot-api \
+    --temp-dir=/var/lib/telegram-bot-api/temp \
+    --max-connections=50 \
+    --verbosity=1
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

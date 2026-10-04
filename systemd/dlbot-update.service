@@ -1,0 +1,7 @@
+[Unit]
+Description=Update yt-dlp (sites change constantly)
+
+[Service]
+Type=oneshot
+ExecStart=/opt/dlbot/venv/bin/pip install --quiet --upgrade yt-dlp
+ExecStartPost=/bin/systemctl restart dlbot.service

@@ -1,0 +1,27 @@
+[Unit]
+Description=Telegram media downloader bot
+After=network-online.target telegram-bot-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dlbot
+Group=dlbot
+WorkingDirectory=/opt/dlbot
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/dlbot/venv/bin/python -m app.main
+Restart=always
+RestartSec=5
+# התקדמות ההורדה + ffmpeg נשארים נחמדים כדי לא להרעיב את מערכת ההפעלה
+Nice=5
+IOSchedulingClass=best-effort
+IOSchedulingPriority=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/dlbot
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

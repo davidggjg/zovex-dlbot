@@ -1,0 +1,7 @@
+[Unit]
+Description=Clean stale dlbot downloads
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/find /var/lib/dlbot/downloads -mindepth 1 -mmin +180 -delete
+ExecStart=/usr/bin/find /var/lib/telegram-bot-api -mindepth 2 -type f -mmin +180 -delete
