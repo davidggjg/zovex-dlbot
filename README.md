@@ -50,6 +50,13 @@ sudo API_ID=... API_HASH=... BOT_TOKEN=... ADMIN_IDS=... bash install.sh
 > **הסודות לא נמצאים בריפו.** הם נכתבים על השרת בלבד:
 > `/opt/dlbot/.env` (הרשאות 640) ו-`/etc/telegram-bot-api.env` (הרשאות 600).
 
+### Python ישן בהפצה
+
+`yt-dlp` ו-`aiogram` דורשים Python 3.9+, אבל Ubuntu 20.04 מגיע עם 3.8.
+אם ה-Python של המערכת ישן מ-3.10, הסקריפט מוריד בניית CPython עצמאית
+ל-`/opt/python` ובונה ממנה את ה-venv. בלי קומפילציה, ועובד גם ב-ARM
+(שם `deadsnakes` לא מספק חבילות). ה-Python של המערכת לא נוגעים בו.
+
 ---
 
 ## מה הבוט עושה

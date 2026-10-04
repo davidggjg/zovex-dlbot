@@ -69,12 +69,83 @@ else
   ok "הקוד שוכפל מ-$REPO_URL"
 fi
 
+# ---------------------------------------------------------------- python
+# Ubuntu 20.04 עדיין על Python 3.8, ו-yt-dlp/aiogram דורשים 3.9+.
+# deadsnakes לא בונה ל-ARM, אז מביאים בניית CPython עצמאית — בלי קומפילציה.
+PY_MIN=310
+PY_BIN=$(command -v python3)
+
+py_version() {
+  "$1" -c 'import sys; print("%d%02d" % sys.version_info[:2])' 2>/dev/null || echo 0
+}
+
+# גרסה נעוצה: הורדה ישירה בלי תלות ב-API. ה-API משמש רק אם הנעיצה נעלמה.
+PY_PIN_TAG=20250818
+PY_PIN_VER=3.12.11
+
+fetch_standalone_python() {
+  local arch asset
+  case "$ARCH" in
+    aarch64|arm64) arch=aarch64-unknown-linux-gnu ;;
+    x86_64|amd64)  arch=x86_64-unknown-linux-gnu  ;;
+    *) die "אין בניית Python מוכנה ל-$ARCH. שדרג את המערכת ל-Ubuntu 22.04+." ;;
+  esac
+
+  if [[ -x /opt/python/bin/python3 ]] && (( $(py_version /opt/python/bin/python3) >= PY_MIN )); then
+    PY_BIN=/opt/python/bin/python3
+    ok "Python עצמאי כבר מותקן ($("$PY_BIN" -V 2>&1))"
+    return
+  fi
+
+  say "ההפצה מספקת רק $(python3 -V 2>&1 | cut -d' ' -f2) — מביא Python מודרני ל-$arch"
+
+  asset="https://github.com/astral-sh/python-build-standalone/releases/download/${PY_PIN_TAG}/cpython-${PY_PIN_VER}+${PY_PIN_TAG}-${arch}-install_only.tar.gz"
+  if ! curl -fsIL --max-time 45 "$asset" >/dev/null 2>&1; then
+    warn "הגרסה הנעוצה לא זמינה — מחפש את האחרונה דרך GitHub API"
+    asset=$(curl -fsSL --max-time 60 \
+      https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest \
+      | python3 -c "
+import json, sys
+want = '$arch'
+try:
+    rel = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+hit = [a['browser_download_url'] for a in rel.get('assets', [])
+       if want in a['browser_download_url']
+       and a['browser_download_url'].endswith('install_only.tar.gz')
+       and '/cpython-3.1' in a['browser_download_url']]
+print(hit[0] if hit else '')
+" 2>/dev/null) || true
+  fi
+
+  [[ -n $asset ]] || die "לא הצלחתי להשיג Python מודרני. בדוק גישה ל-github.com מהשרת."
+
+  rm -rf /opt/python /tmp/py.tar.gz
+  curl -fL --max-time 600 --retry 3 -o /tmp/py.tar.gz "$asset" \
+    || die "הורדת Python נכשלה."
+  mkdir -p /opt/python
+  tar -xzf /tmp/py.tar.gz -C /opt/python --strip-components=1 || die "חילוץ Python נכשל."
+  rm -f /tmp/py.tar.gz
+  [[ -x /opt/python/bin/python3 ]] || die "חילוץ Python נכשל."
+  PY_BIN=/opt/python/bin/python3
+  "$PY_BIN" -c 'import ssl, sqlite3, ctypes' || die "בניית ה-Python חסרה מודולים."
+  ok "הותקן $("$PY_BIN" -V 2>&1) ב-/opt/python"
+}
+
+if (( $(py_version "$PY_BIN") < PY_MIN )); then
+  fetch_standalone_python
+else
+  ok "Python של המערכת מתאים ($("$PY_BIN" -V 2>&1))"
+fi
+
 # ---------------------------------------------------------------- venv
 say "בונה סביבת Python"
-python3 -m venv "$APP_DIR/venv"
+rm -rf "$APP_DIR/venv"
+"$PY_BIN" -m venv "$APP_DIR/venv"
 "$APP_DIR/venv/bin/pip" install --quiet --upgrade pip wheel
 "$APP_DIR/venv/bin/pip" install --quiet -r "$APP_DIR/requirements.txt"
-ok "yt-dlp $("$APP_DIR/venv/bin/yt-dlp" --version)"
+ok "yt-dlp $("$APP_DIR/venv/bin/yt-dlp" --version) · aiogram $("$APP_DIR/venv/bin/python" -c 'import aiogram;print(aiogram.__version__)')"
 
 # ---------------------------------------------------------------- local Bot API
 build_tba() {
